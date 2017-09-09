@@ -32,6 +32,7 @@ def main():
     service = discovery.build('calendar', 'v3', http=http)
 
     now = datetime.datetime.utcnow()
+    look_back_max = 365
     last_year = (now - datetime.timedelta(days=364)).isoformat() + 'Z' # 'Z' indicates UTC time
     print('Getting 10 events from the last year')
     eventsResult = service.events().list(
