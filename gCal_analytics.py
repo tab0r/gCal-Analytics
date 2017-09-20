@@ -112,31 +112,29 @@ def events_per_interval(search_start, search_end, interval = 7, cal_ID = 'primar
         num_events += 1
     return pd.DataFrame(events_per_interval, columns = ['start', 'end', 'num_Events', 'events'])
 
-def events_per_interval_first(search_start, interval = 7, look_back_max = 365, cal_ID = 'primary'):
+def events_created_per_interval(search_start, search_end, interval = 7, cal_ID = 'primary'):
+    events = events_in_interval(search_start, search_end, cal_ID)
     events_per_interval = []
-    intervals = int(look_back_max/interval)
     interval_start = search_start
     interval_end = search_start + datetime.timedelta(days=0.9999*interval)
-    for i in range(intervals):
-        # add this before using in the API request
-        # .isoformat() + 'Z' # 'Z' indicates UTC time
-        interval_str = 'Getting events for ' + str(interval_start) + ' to ' + str(interval_end)
-        print(interval_str)
-        events = events_in_interval(interval_start, interval_end, cal_ID)
-        labels = []
-        for event in events:
-            start = event['start'].get('dateTime', event['start'].get('date'))
-            print(start, event['summary'])
-            labels.append(event['summary'])
-        num_events = len(events)
-        end_str = str(num_events) + " events found"
-        print(end_str)
-
-        line = [i, interval_start, interval_end, num_events, labels]
-        events_per_interval.append(line)
-        interval_start = interval_start + + datetime.timedelta(days=interval)
-        interval_end = interval_end + datetime.timedelta(days=interval)
-    return pd.DataFrame(events_per_interval, columns = ['interval_Num', 'start', 'end', 'num_Events', 'events'])
+    labels = []
+    num_events = 0
+    for event in events:
+        created_str = event['created'][0:10]
+        created = datetime.datetime.strptime(created_str, '%Y-%m-%d')
+        while interval_end < created:
+            line = [interval_start, interval_end, num_events, labels]
+            # slide to the interval the events start in, creating null lines along the way
+            events_per_interval.append(line)
+            # set variables for next interval
+            interval_start = interval_start + datetime.timedelta(days=interval)
+            interval_end = interval_end + datetime.timedelta(days=interval)
+            num_events = 0
+            labels = []
+        # do the stuff to count the interval
+        labels.append(event['summary'])
+        num_events += 1
+    return pd.DataFrame(events_per_interval, columns = ['start', 'end', 'num_Events', 'events'])
 
 if __name__ == '__main__':
     # main()
@@ -154,23 +152,26 @@ if __name__ == '__main__':
     plt.plot_date(dates, values)
     # daily_events = events_per_interval(search_start, interval=1)
     weekly_events = events_per_interval(search_start, midnight)
+    created_per_week = events_created_per_interval(search_start, midnight)
     # biweekly_events = events_per_interval(interval=14)
     # monthly_events = ....
     # quarterly_events = ....
     labels = [h[2] for h in h_plot_data]
-    plt.subplots_adjust(bottom = 0.1)
-    plt.scatter(
-        dates, values, marker='o')
+    fig = plt.figure(figsize=(11, 5))
+    # plt.subplots_adjust(bottom = 0.1)
+    # plt.scatter(dates, values, marker='o')
 
     for label, x, y in zip(labels, dates, values):
         plt.annotate(
             label,
-            xy=(x, y), xytext=(10, 10), fontsize=6, rotation=80,
+            xy=(x, y), xytext=(10, 50), fontsize=6, rotation=80,
             textcoords='offset points', ha='right', va='bottom',
             bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.3),
             arrowprops=dict(arrowstyle = '->', connectionstyle='arc3,rad=0'))
 
     plt.plot(weekly_events['start'], weekly_events['num_Events'], label="Weekly Events")
+    plt.plot(created_per_week['start'], created_per_week['num_Events'], label="Created Events")
     # plt.plot(daily_events['start'], daily_events['num_Events'], label="Daily Events")
     # plt.plot(14*biweekly_events['Interval'], biweekly_events['Events'])
+    plt.legend()
     plt.show()
