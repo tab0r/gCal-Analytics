@@ -113,8 +113,10 @@ def events_per_interval(search_start, search_end, interval = 7, cal_ID = 'primar
     return pd.DataFrame(events_per_interval, columns = ['start', 'end', 'num_Events', 'events'])
 
 def events_created_per_interval(search_start, search_end, interval = 7, cal_ID = 'primary'):
+    # plus average lead time over intervals
     events = events_in_interval(search_start, search_end, cal_ID)
     events_per_interval = []
+    leads = []
     interval_start = search_start
     interval_end = search_start + datetime.timedelta(days=0.9999*interval)
     labels = []
@@ -122,6 +124,12 @@ def events_created_per_interval(search_start, search_end, interval = 7, cal_ID =
     for event in events:
         created_str = event['created'][0:10]
         created = datetime.datetime.strptime(created_str, '%Y-%m-%d')
+        try:
+            start_str = event['start']['dateTime'][0:10]
+        except:
+            start_str = event['start']['date']
+        start = datetime.datetime.strptime(start_str, '%Y-%m-%d')
+        leads.append((start - created).days)
         while interval_end < created:
             line = [interval_start, interval_end, num_events, labels]
             # slide to the interval the events start in, creating null lines along the way
@@ -134,7 +142,8 @@ def events_created_per_interval(search_start, search_end, interval = 7, cal_ID =
         # do the stuff to count the interval
         labels.append(event['summary'])
         num_events += 1
-    return pd.DataFrame(events_per_interval, columns = ['start', 'end', 'num_Events', 'events'])
+    avg_lead = sum(leads)/len(leads)
+    return avg_lead, pd.DataFrame(events_per_interval, columns = ['start', 'end', 'num_Events', 'events'])
 
 if __name__ == '__main__':
     # main()
@@ -146,31 +155,34 @@ if __name__ == '__main__':
                     interval_start = search_start,
                     interval_end = midnight,
                     cal_ID = 'en.usa#holiday@group.v.calendar.google.com')
-    h_plot_data = [[holiday['start']['date'], 0, holiday['summary']] for holiday in holidays]
+    # ignore_list = ['Chistmas Day Observed', 'New Years Day Observed'....]
+    # finish this list to ignore the holidays getting in the way.
+    h_plot_data = [[holiday['start']['date'], 1, holiday['summary']] for holiday in holidays]
     dates = mpl.dates.datestr2num([holiday['start']['date'] for holiday in holidays])
     values = [h[1] for h in h_plot_data]
-    plt.plot_date(dates, values)
     # daily_events = events_per_interval(search_start, interval=1)
     weekly_events = events_per_interval(search_start, midnight)
-    created_per_week = events_created_per_interval(search_start, midnight)
+    avg_lead, created_per_week = events_created_per_interval(search_start, midnight)
+    print("Average lead time is ", avg_lead)
     # biweekly_events = events_per_interval(interval=14)
     # monthly_events = ....
     # quarterly_events = ....
     labels = [h[2] for h in h_plot_data]
     fig = plt.figure(figsize=(11, 5))
     # plt.subplots_adjust(bottom = 0.1)
-    # plt.scatter(dates, values, marker='o')
+    plt.scatter(dates, values, marker='|')
 
     for label, x, y in zip(labels, dates, values):
         plt.annotate(
             label,
-            xy=(x, y), xytext=(10, 50), fontsize=6, rotation=80,
+            xy=(x, y), xytext=(10, -20), fontsize=6, rotation=80,
             textcoords='offset points', ha='right', va='bottom',
             bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.3),
             arrowprops=dict(arrowstyle = '->', connectionstyle='arc3,rad=0'))
 
-    plt.plot(weekly_events['start'], weekly_events['num_Events'], label="Weekly Events")
-    plt.plot(created_per_week['start'], created_per_week['num_Events'], label="Created Events")
+    capacity = weekly_events['num_Events'].max()
+    plt.plot(weekly_events['start'], weekly_events['num_Events']/capacity, label="Weekly Capacity Percentage")
+    # plt.plot(created_per_week['start'], created_per_week['num_Events'], label="Created Events")
     # plt.plot(daily_events['start'], daily_events['num_Events'], label="Daily Events")
     # plt.plot(14*biweekly_events['Interval'], biweekly_events['Events'])
     plt.legend()
