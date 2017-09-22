@@ -8,6 +8,9 @@ from oauth2client import tools
 from oauth2client.file import Storage
 from quickstart import get_credentials
 import datetime
+
+from os.path import isfile
+import pickle
 import pytz
 import pandas as pd
 import matplotlib as mpl
@@ -151,19 +154,27 @@ if __name__ == '__main__':
     midnight = datetime.datetime.combine(today, datetime.time(0, 0))
     # search_end = midnight.astimezone(pytz.utc)
     search_start = (midnight - datetime.timedelta(days=400))
-    holidays = events_in_interval(
-                    interval_start = search_start,
-                    interval_end = midnight,
-                    cal_ID = 'en.usa#holiday@group.v.calendar.google.com')
-    # ignore_list = ['Chistmas Day Observed', 'New Years Day Observed'....]
+    if isfile('holidays.pkl'):# and (input("Load holiday data from file?")=='y'):
+        holidays = pickle.load(open('holidays.pkl', 'rb'))
+    else:
+        holidays = events_in_interval(
+                        interval_start = search_start,
+                        interval_end = midnight,
+                        cal_ID = 'en.usa#holiday@group.v.calendar.google.com')
+        pickle.dump(holidays, open('holidays.pkl', 'wb'))
+    ignore_list = {'Election Day', 'Daylight Saving Time ends', 'Daylight Saving Time starts', 'Christmas Eve', 'Christmas Day observed', 'New Year\'s Eve', 'New Year\'s Day observed', "Thomas Jefferson's Birthday"}
     # finish this list to ignore the holidays getting in the way.
-    h_plot_data = [[holiday['start']['date'], 1, holiday['summary']] for holiday in holidays]
-    dates = mpl.dates.datestr2num([holiday['start']['date'] for holiday in holidays])
+    h_plot_data = [[holiday['start']['date'], 1, holiday['summary']] for holiday in holidays if holiday['summary'] not in ignore_list]
+    dates = mpl.dates.datestr2num([h[0] for h in h_plot_data])
     values = [h[1] for h in h_plot_data]
-    # daily_events = events_per_interval(search_start, interval=1)
-    weekly_events = events_per_interval(search_start, midnight)
-    avg_lead, created_per_week = events_created_per_interval(search_start, midnight)
+    if isfile('events.pkl'):# and (input("Load event data from file?")=='y'):
+        weekly_events, created_per_week, avg_lead = pickle.load(open('events.pkl', 'rb'))
+    else:
+        weekly_events = events_per_interval(search_start, midnight)
+        avg_lead, created_per_week = events_created_per_interval(search_start, midnight)
+        pickle.dump([weekly_events, created_per_week, avg_lead], open('events.pkl', 'wb'))
     print("Average lead time is ", avg_lead)
+    # daily_events = events_per_interval(search_start, interval=1)
     # biweekly_events = events_per_interval(interval=14)
     # monthly_events = ....
     # quarterly_events = ....
@@ -181,9 +192,11 @@ if __name__ == '__main__':
             arrowprops=dict(arrowstyle = '->', connectionstyle='arc3,rad=0'))
 
     capacity = weekly_events['num_Events'].max()
-    plt.plot(weekly_events['start'], weekly_events['num_Events']/capacity, label="Weekly Capacity Percentage")
-    # plt.plot(created_per_week['start'], created_per_week['num_Events'], label="Created Events")
+    plt.plot(weekly_events['start'], weekly_events['num_Events'], label="Weekly Events")
+    plt.plot(created_per_week['start'], created_per_week['num_Events'], label="Created Events")
     # plt.plot(daily_events['start'], daily_events['num_Events'], label="Daily Events")
     # plt.plot(14*biweekly_events['Interval'], biweekly_events['Events'])
+    title_str = "Events per Week and Events Created per Week \n Average Lead Time on Events: " + str(int(avg_lead)) + " days"
+    plt.title(title_str)
     plt.legend()
     plt.show()
