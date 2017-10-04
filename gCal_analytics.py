@@ -104,6 +104,7 @@ def events_per_interval(search_start, search_end, interval = 7, cal_ID = 'primar
         while interval_end < start:
             line = [interval_start, interval_end, num_events, labels]
             # slide to the interval the events start in, creating null lines along the way
+            print(line)
             events_per_interval.append(line)
             # set variables for next interval
             interval_start = interval_start + datetime.timedelta(days=interval)
