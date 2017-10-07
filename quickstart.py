@@ -60,6 +60,15 @@ def main():
     http = credentials.authorize(httplib2.Http())
     service = discovery.build('calendar', 'v3', http=http)
 
+    page_token = None
+    while True:
+      calendar_list = service.calendarList().list(pageToken=page_token).execute()
+      for calendar_list_entry in calendar_list['items']:
+        print(calendar_list_entry['id'])
+      page_token = calendar_list.get('nextPageToken')
+      if not page_token:
+        break
+
     now = datetime.datetime.utcnow().isoformat() + 'Z' # 'Z' indicates UTC time
     print('Getting the upcoming 5 events')
     eventsResult = service.events().list(

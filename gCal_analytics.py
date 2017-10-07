@@ -35,43 +35,6 @@ def pandas_holidays():
     if datetime.datetime(2014,1,1) in holidays:
         print(True)
 
-def main():
-    """Shows basic usage of the Google Calendar API.
-
-    Creates a Google Calendar API service object and outputs a list of the next
-    10 events on the user's calendar.
-    """
-    credentials = get_credentials()
-    http = credentials.authorize(httplib2.Http())
-    service = discovery.build('calendar', 'v3', http=http)
-    page_token = None
-    while True:
-      calendar_list = service.calendarList().list(pageToken=page_token).execute()
-      for calendar_list_entry in calendar_list['items']:
-        print(calendar_list_entry['id'])
-      page_token = calendar_list.get('nextPageToken')
-      if not page_token:
-        break
-
-    now = datetime.datetime.utcnow()
-    look_back_max = 365
-    last_year = (now - datetime.timedelta(days=364)).isoformat() + 'Z' # 'Z' indicates UTC time
-    print('Getting 10 events from the last year')
-    eventsResult = service.events().list(
-        calendarId='primary',
-        timeMin=last_year, maxResults=10, singleEvents=True,
-        orderBy='startTime').execute()
-    events = eventsResult.get('items', [])
-
-    if not events:
-        print('No events found.')
-    for event in events:
-        start = event['start']['dateTime'][0:10]
-        print(start, event['summary'])
-        # for k in event:
-        #     detail_str = str(k) + ": " + str(event[k])
-        #     print(detail_str)
-
 def events_in_interval(interval_start, interval_end, cal_ID):
     credentials = get_credentials()
     http = credentials.authorize(httplib2.Http())
@@ -80,7 +43,7 @@ def events_in_interval(interval_start, interval_end, cal_ID):
         calendarId=cal_ID,
         timeMin=interval_start.isoformat() + 'Z',
         timeMax=interval_end.isoformat() + 'Z',
-        #maxResults=10,
+        maxResults=1000,
         singleEvents=True,
         orderBy='startTime').execute()
     events = eventsResult.get('items', [])
@@ -157,10 +120,11 @@ def events_created_per_interval(search_start, search_end, interval = 7, cal_ID =
 if __name__ == '__main__':
     # main()
     today = datetime.datetime.now().date()
+    now = datetime.datetime.now()
     midnight = datetime.datetime.combine(today, datetime.time(0, 0))
     # search_end = midnight.astimezone(pytz.utc)
-    search_start = (midnight - datetime.timedelta(days=400))
-    if isfile('holidays.pkl'):# and (input("Load holiday data from file?")=='y'):
+    search_start = (midnight - datetime.timedelta(days=600))
+    if isfile('holidays.pkl') and (input("Load holiday data from file?")=='y'):
         holidays = pickle.load(open('holidays.pkl', 'rb'))
     else:
         holidays = events_in_interval(
@@ -173,11 +137,13 @@ if __name__ == '__main__':
     h_plot_data = [[holiday['start']['date'], 1, holiday['summary']] for holiday in holidays if holiday['summary'] not in ignore_list]
     dates = mpl.dates.datestr2num([h[0] for h in h_plot_data])
     values = [h[1] for h in h_plot_data]
+    cal_ID = 'hbe4hm8eu1r0v6ohp9kofi331k@group.calendar.google.com'
+    # events = events_in_interval(search_start, midnight+datetime.timedelta(days=365), cal_ID)
     if isfile('events.pkl') and (input("Load event data from file?")=='y'):
         weekly_events, created_per_week = pickle.load(open('events.pkl', 'rb'))
     else:
-        weekly_events = events_per_interval(search_start, midnight)
-        created_per_week = events_created_per_interval(search_start, midnight)
+        weekly_events = events_per_interval(search_start, midnight, 7, cal_ID)
+        created_per_week = events_created_per_interval(search_start, midnight, 7, cal_ID)
         pickle.dump([weekly_events, created_per_week], open('events.pkl', 'wb'))
     avg_lead = created_per_week['avg_Lead'].mean()
     print("Average lead time is ", avg_lead)
@@ -186,7 +152,32 @@ if __name__ == '__main__':
     # monthly_events = ....
     # quarterly_events = ....
     labels = [h[2] for h in h_plot_data]
-    fig = plt.figure(figsize=(11, 3))
+    # fig = plt.figure(figsize=(15, 3.5))
+    # # plt.subplots_adjust(bottom = 0.1)
+    # plt.scatter(dates, values, marker='|')
+    #
+    # for label, x, y in zip(labels, dates, values):
+    #     plt.annotate(
+    #         label,
+    #         xy=(x, y), xytext=(10, 5), fontsize=6, rotation=80,
+    #         textcoords='offset points', ha='right', va='bottom',
+    #         bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.3))
+    #         # arrowprops=dict(arrowstyle = '->', connectionstyle='arc3,rad=0'))
+    #
+    # capacity = weekly_events['num_Events'].max()
+    # plt.plot(weekly_events['start'], weekly_events['num_Events'], label="Weekly Events")
+    # plt.plot(created_per_week['start'], created_per_week['num_Events'], label="Created Events")
+    # plt.gca().set_ylabel('Weekly Events')
+    # title_str = "Events per Week and Events Created per Week \n Average Lead Time on Events: " + str(int(avg_lead)) + " days"
+    # plt.title(title_str)
+    # plt.xticks(list(weekly_events['start']),
+    #     [str(w.month)+"-"+str(w.day) for w in weekly_events['start']],  rotation=70)
+    # plt.legend()
+    # plt.tight_layout()
+    # plt.show()
+    # plt.close('all')
+
+    fig = plt.figure(figsize=(15, 3.5))
     # plt.subplots_adjust(bottom = 0.1)
     plt.scatter(dates, values, marker='|')
 
@@ -198,18 +189,10 @@ if __name__ == '__main__':
             bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.3))
             # arrowprops=dict(arrowstyle = '->', connectionstyle='arc3,rad=0'))
 
-    capacity = weekly_events['num_Events'].max()
-    plt.plot(weekly_events['start'], weekly_events['num_Events'], label="Weekly Events")
-    plt.plot(created_per_week['start'], created_per_week['num_Events'], label="Created Events")
-    plt.gca().set_ylabel('Weekly Events')
-    # plt.plot(created_per_week['start'], created_per_week['avg_Lead'], label="Weekly Average Lead")
-    # plt.gca().set_ylabel('Average Lead')
-    # plt.plot(daily_events['start'], daily_events['num_Events'], label="Daily Events")
-    # plt.plot(14*biweekly_events['Interval'], biweekly_events['Events'])
-    title_str = "Events per Week and Events Created per Week \n Average Lead Time on Events: " + str(int(avg_lead)) + " days"
-    plt.title(title_str)
+    plt.plot(created_per_week['start'], created_per_week['avg_Lead'], label="Weekly Average Lead")
     plt.xticks(list(weekly_events['start']),
         [str(w.month)+"-"+str(w.day) for w in weekly_events['start']],  rotation=70)
     plt.legend()
     plt.tight_layout()
     plt.show()
+    plt.close('all')
